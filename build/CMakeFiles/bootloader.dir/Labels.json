@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/CMakeFiles/bootloader"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/CMakeFiles/bootloader.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/CMakeFiles/bootloader-complete.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+		},
+		{
+			"file" : "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"bootloader"
+		],
+		"name" : "bootloader"
+	}
+}

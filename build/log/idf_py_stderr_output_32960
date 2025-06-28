@@ -1,0 +1,22 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/anastet/.espressif/python_env/idf5.5_py3.13_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink
+CMake Error at /Users/anastet/esp/esp-idf/tools/cmake/build.cmake:621 (message):
+  WARNING: Component "espressif/esp_netif" not found
+
+  WARNING: Component "espressif/esp_wifi" not found
+
+  WARNING: Component "espressif/nvs_flash" not found
+
+  WARNING: Component "espressif/esp_netif" not found
+
+  WARNING: Component "espressif/esp_wifi" not found
+
+  WARNING: Component "espressif/nvs_flash" not found
+
+  ERROR: Because project depends on espressif/nvs_flash (*) which doesn't
+  match any versions, version solving failed.
+
+Call Stack (most recent call first):
+  /Users/anastet/esp/esp-idf/tools/cmake/project.cmake:736 (idf_build_process)
+  CMakeLists.txt:8 (project)
+
+

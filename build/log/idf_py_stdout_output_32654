@@ -1,0 +1,24 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/anastet/.espressif/python_env/idf5.5_py3.13_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink
+-- IDF_TARGET is not set, guessed 'esp32c6' from sdkconfig '/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/sdkconfig'
+-- Found Git: /usr/bin/git (found version "2.39.5 (Apple Git-154)")
+-- Minimal build - ON
+-- The C compiler identification is GNU 14.2.0
+-- The CXX compiler identification is GNU 14.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: /Users/anastet/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin/riscv32-esp-elf-gcc
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /Users/anastet/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin/riscv32-esp-elf-gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /Users/anastet/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin/riscv32-esp-elf-g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- git rev-parse returned 'fatal: not a git repository (or any of the parent directories): .git'
+-- Could not use 'git describe' to determine PROJECT_VER.
+-- Building ESP-IDF components for target esp32c6
+NOTICE: Manifest files have changed, solving dependencies.
+....HINT: Please check manifest file of the following component(s): main
+-- Configuring incomplete, errors occurred!
