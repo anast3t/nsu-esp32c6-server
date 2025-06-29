@@ -9,7 +9,7 @@
 "idf.customExtraVars": {
     "IDF_TARGET": "esp32c6"
 },
-"idf.port": "/dev/tty.usbmodem59580044951",
+"idf.port": "/dev/tty.usbmodem59580072201",
 "idf.flashType": "UART",
 "files.associations": {
     "cstdint": "c",

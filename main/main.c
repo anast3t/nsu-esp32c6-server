@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_mac.h"    
@@ -52,8 +53,8 @@ static void tcp_send_log(bool led_on, uint32_t cycles)
 
     char buf[96];
     int len = snprintf(buf, sizeof(buf),
-                       "LED:%s cycles:%lu time:%.2fns (%.6fms)\n",
-                       led_on ? "ON" : "OFF", cycles, ns, ms);
+                       "LED:%s\n",
+                       led_on ? "ON" : "OFF");
 
     if (send(client_fd, buf, len, 0) < 0) {
         ESP_LOGW(TAG, "send() error, closing socket");
@@ -94,18 +95,16 @@ static void led_task(void *arg)
 
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
+        led_on = !led_on;
+        tcp_send_log(led_on, 0);
         uint8_t val = led_on ? 32 : 0;
         led_strip_set_pixel(led_strip, 0, val, 0, 0);
         led_strip_refresh(led_strip);
-        led_on = !led_on;
         uint32_t cycles = esp_cpu_get_cycle_count() - cycle_start;
         float ns = (float)cycles * 1e9f / (float)160000000;
         float ms = ns / 1e6f;
         ESP_LOGI(TAG, "LED %s | cycles %lu | %.2f ns (%.6f ms)",
                  led_on ? "ON" : "OFF", cycles, ns, ms);
-
-        tcp_send_log(led_on, cycles);
     }
 }
 
