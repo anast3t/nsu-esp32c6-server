@@ -75,5 +75,5 @@ esp_err_t transport_init(void)
 
 int transport_send(const char *msg, size_t len)
 {
-    return (client_fd >= 0) ? send(client_fd, msg, len, 0) : -1;
+    return (client_fd >= 0) ? send(client_fd, msg, len, MSG_DONTWAIT) : -1;
 }

@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "blink",
-    "project_version":    "2ae1417-dirty",
+    "project_version":    "1f417ce-dirty",
     "project_path":       "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink",
     "idf_path":           "/Users/anastet/esp/esp-idf",
     "build_dir":          "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build",
@@ -1000,7 +1000,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/transport/libtransport.a",
-            "sources": [ "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/components/transport/src/transport_wifi.c" ],
+            "sources": [ "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/components/transport/src/transport_ble.c" ],
             "include_dirs": [ "include" ]
         },
         "vfs": {
