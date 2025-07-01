@@ -174,9 +174,13 @@ SECTIONS
     /* Code marked as running out of IRAM */
     _iram_text_start = ABSOLUTE(.);
     *(.iram1 .iram1.*)
+    *libble_app.a:(.high_perf_code_iram1 .high_perf_code_iram1.*)
+    *libbt.a:(.high_perf_code_iram1 .high_perf_code_iram1.*)
     *libclang_rt.builtins.a:_divsf3.*(.literal .literal.* .text .text.*)
     *libclang_rt.builtins.a:restore.*(.literal .literal.* .text .text.*)
     *libclang_rt.builtins.a:save.*(.literal .literal.* .text .text.*)
+    *libcoexist.a:(.coexiram .coexiram.*)
+    *libcoexist.a:(.coexsleepiram .coexsleepiram.*)
     *libesp_driver_rmt.a:rmt_rx.*(.literal.rmt_rx_default_isr .text.rmt_rx_default_isr)
     *libesp_driver_rmt.a:rmt_tx.*(.literal.rmt_tx_default_isr .text.rmt_tx_default_isr)
     *libesp_event.a:default_event_loop.*(.literal.esp_event_isr_post .text.esp_event_isr_post)
@@ -373,8 +377,18 @@ SECTIONS
     *(.gnu.linkonce.s.*)
     *(.gnu.linkonce.s2.*)
     *(.jcr)
-    *(.data .data.*)
+    *(EXCLUDE_FILE(*libble_app.a *libbt.a) .data EXCLUDE_FILE(*libble_app.a *libbt.a) .data.*)
     *(.dram1 .dram1.*)
+    . = ALIGN(4);
+    _bt_controller_data_start = ABSOLUTE(.);
+    *libble_app.a:(.data .data.*)
+    . = ALIGN(4);
+    _bt_controller_data_end = ABSOLUTE(.);
+    . = ALIGN(4);
+    _bt_data_start = ABSOLUTE(.);
+    *libbt.a:(.data .data.*)
+    . = ALIGN(4);
+    _bt_data_end = ABSOLUTE(.);
     *libclang_rt.builtins.a:_divsf3.*(.rodata .rodata.* .sdata2 .sdata2.* .srodata .srodata.*)
     *libclang_rt.builtins.a:restore.*(.rodata .rodata.* .sdata2 .sdata2.* .srodata .srodata.*)
     *libclang_rt.builtins.a:save.*(.rodata .rodata.* .sdata2 .sdata2.* .srodata .srodata.*)
@@ -456,10 +470,30 @@ SECTIONS
      * ldgen places all bss-related data to mapping[dram0_bss]
      * (See components/esp_system/app.lf).
      */
-    *(.bss .bss.*)
+    *(EXCLUDE_FILE(*libble_app.a *libbt.a) .bss EXCLUDE_FILE(*libble_app.a *libbt.a) .bss.*)
     *(.dynbss .dynsbss .gnu.linkonce.b .gnu.linkonce.b.* .gnu.linkonce.sb .gnu.linkonce.sb.* .gnu.linkonce.sb2 .gnu.linkonce.sb2.* .sbss .sbss.* .sbss2 .sbss2.* .scommon .share.mem)
     *(.ext_ram.bss .ext_ram.bss.*)
-    *(COMMON)
+    *(EXCLUDE_FILE(*libble_app.a *libbt.a) COMMON)
+    . = ALIGN(4);
+    _bt_controller_bss_start = ABSOLUTE(.);
+    *libble_app.a:(.bss .bss.*)
+    . = ALIGN(4);
+    _bt_controller_bss_end = ABSOLUTE(.);
+    . = ALIGN(4);
+    _bt_controller_common_start = ABSOLUTE(.);
+    *libble_app.a:(COMMON)
+    . = ALIGN(4);
+    _bt_controller_common_end = ABSOLUTE(.);
+    . = ALIGN(4);
+    _bt_bss_start = ABSOLUTE(.);
+    *libbt.a:(.bss .bss.*)
+    . = ALIGN(4);
+    _bt_bss_end = ABSOLUTE(.);
+    . = ALIGN(4);
+    _bt_common_start = ABSOLUTE(.);
+    *libbt.a:(COMMON)
+    . = ALIGN(4);
+    _bt_common_end = ABSOLUTE(.);
     
  . = ALIGN(8); 
  _bss_end = ABSOLUTE(.);

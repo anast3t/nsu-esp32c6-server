@@ -1,6 +1,5 @@
 $<TARGET_FILE:__idf_riscv>
 $<TARGET_FILE:__idf_esp_driver_gpio>
-$<TARGET_FILE:__idf_esp_timer>
 $<TARGET_FILE:__idf_esp_pm>
 $<TARGET_FILE:__idf_mbedtls>
 $<TARGET_FILE:__idf_esp_app_format>
@@ -15,6 +14,7 @@ $<TARGET_FILE:__idf_esp_system>
 $<TARGET_FILE:__idf_esp_common>
 $<TARGET_FILE:__idf_esp_rom>
 $<TARGET_FILE:__idf_hal>
+$<TARGET_FILE:__idf_log>
 $<TARGET_FILE:__idf_heap>
 $<TARGET_FILE:__idf_soc>
 $<TARGET_FILE:__idf_esp_security>
@@ -23,7 +23,7 @@ $<TARGET_FILE:__idf_freertos>
 $<TARGET_FILE:__idf_newlib>
 $<TARGET_FILE:__idf_pthread>
 $<TARGET_FILE:__idf_cxx>
-$<TARGET_FILE:__idf_log>
+$<TARGET_FILE:__idf_esp_timer>
 $<TARGET_FILE:__idf_esp_event>
 $<TARGET_FILE:__idf_nvs_flash>
 $<TARGET_FILE:__idf_esp_phy>
@@ -37,7 +37,9 @@ $<TARGET_FILE:__idf_esp_netif>
 $<TARGET_FILE:__idf_wpa_supplicant>
 $<TARGET_FILE:__idf_esp_coex>
 $<TARGET_FILE:__idf_esp_wifi>
-$<TARGET_FILE:__idf_esp_driver_rmt>
 $<TARGET_FILE:__idf_esp_driver_spi>
+$<TARGET_FILE:__idf_esp_gdbstub>
+$<TARGET_FILE:__idf_bt>
+$<TARGET_FILE:__idf_esp_driver_rmt>
 $<TARGET_FILE:__idf_espressif__led_strip>
 $<TARGET_FILE:__idf_main>

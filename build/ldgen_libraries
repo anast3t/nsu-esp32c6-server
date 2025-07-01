@@ -1,6 +1,5 @@
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/riscv/libriscv.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_driver_gpio/libesp_driver_gpio.a
-/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_timer/libesp_timer.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_pm/libesp_pm.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/mbedtls/libmbedtls.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_app_format/libesp_app_format.a
@@ -15,6 +14,7 @@
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_common/libesp_common.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_rom/libesp_rom.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/hal/libhal.a
+/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/log/liblog.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/heap/libheap.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/soc/libsoc.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_security/libesp_security.a
@@ -23,7 +23,7 @@
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/newlib/libnewlib.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/pthread/libpthread.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/cxx/libcxx.a
-/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/log/liblog.a
+/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_timer/libesp_timer.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_event/libesp_event.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/nvs_flash/libnvs_flash.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_phy/libesp_phy.a
@@ -37,7 +37,9 @@
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/wpa_supplicant/libwpa_supplicant.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_coex/libesp_coex.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_wifi/libesp_wifi.a
-/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_driver_rmt/libesp_driver_rmt.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_driver_spi/libesp_driver_spi.a
+/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_gdbstub/libesp_gdbstub.a
+/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/bt/libbt.a
+/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/esp_driver_rmt/libesp_driver_rmt.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/espressif__led_strip/libespressif__led_strip.a
 /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build/esp-idf/main/libmain.a

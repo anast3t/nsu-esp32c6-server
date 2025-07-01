@@ -1,31 +1,87 @@
 /* ------------------------------------------------------------------
- *  ESP32-C6 SoftAP + TCP server
+ *  ESP32-C6  ―  Wi-Fi AP + TCP  ‖  BLE Peripheral + GATT Notify
+ *  переключается строкой PROTO_BT
  * ----------------------------------------------------------------- */
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_netif.h"
+#define PROTO_BT   1            /* 0 = Wi-Fi,  1 = Bluetooth LE */
+
+/* ---------- общие incluye ----------------------------------------- */
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-#include "lwip/sockets.h"
 #include "driver/gpio.h"
 #include "led_strip.h"
 #include "esp_cpu.h"
-#include "esp_system.h"
 
-#define MY_AP_SSID  "ESP32C6_AP"
-#define MY_AP_PASS  "12345678"
-#define TCP_PORT    5000
-#define BOOT_BTN    9
-#define LED_GPIO    8
-#define LED_COUNT   1
+/* ---------- BLE ---------------------------------------------------- */
+#if PROTO_BT
+#include "nimble/nimble_port.h"
+#include "nimble/nimble_port_freertos.h"
+#include "host/ble_hs.h"
+#include "services/gap/ble_svc_gap.h"
+#include "services/gatt/ble_svc_gatt.h"
+#include "esp_bt.h"
+#else            /* ---------- Wi-Fi / TCP --------------------------- */
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "lwip/sockets.h"
+#endif
 
-static const char *TAG = "SOFTAP";
+/* ---------- конфигурация ------------------------------------------ */
+#define BOOT_BTN     9
+#define LED_GPIO     8
+#define LED_COUNT    1
+#define TAG          "LAT_SRV"
+
+#if !PROTO_BT
+#define MY_AP_SSID   "ESP32C6_AP"
+#define MY_AP_PASS   "12345678"
+#define TCP_PORT     5000
+#endif
+
 static led_strip_handle_t strip;
-static TaskHandle_t led_task = NULL;   /* <-- кому слать уведомление */
-static int client_fd = -1;
-static volatile uint32_t t_cycle = 0;
+static TaskHandle_t        led_task;
+static volatile uint32_t   t_cycle;
+static bool     led_on = false;
 
-/* ---------- Wi-Fi 4 / 6 ------------------------------------------------- */
+/* ************************************************************************** */
+/*                              TRANSPORT-INDEPENDENT                         */
+/* ************************************************************************** */
+static void IRAM_ATTR btn_isr(void *arg)
+{
+    t_cycle = esp_cpu_get_cycle_count();
+    BaseType_t hp = pdFALSE;
+    vTaskNotifyGiveFromISR(led_task, &hp);
+    if (hp) portYIELD_FROM_ISR();
+}
+
+/* отправка текста при смене состояния светодиода */
+#if PROTO_BT
+/* BLE: notify ----------------------------------------------------------------*/
+static uint16_t            gatt_chr_handle;
+static uint16_t            ble_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+
+static void tx_send(const char *msg, size_t len)
+{
+    if (ble_conn_handle == BLE_HS_CONN_HANDLE_NONE) return;
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(msg, len);
+    ble_gatts_notify_custom(ble_conn_handle, gatt_chr_handle, om);
+}
+#else
+/* TCP: send ------------------------------------------------------------------*/
+static int client_fd = -1;
+static void tx_send(const char *msg, size_t len)
+{
+    if (client_fd >= 0) send(client_fd, msg, len, 0);
+}
+#endif
+
+/* ************************************************************************** */
+/*                              Wi-Fi / TCP PART                              */
+/* ************************************************************************** */
+#if !PROTO_BT
 typedef enum { WIFI_STD_4, WIFI_STD_6 } wifi_std_t;
 static esp_err_t wifi_ap_set_proto(wifi_std_t s)
 {
@@ -36,25 +92,33 @@ static esp_err_t wifi_ap_set_proto(wifi_std_t s)
     return esp_wifi_set_protocols(WIFI_IF_AP, &p);
 }
 
-/* ---------- ISR --------------------------------------------------------- */
-static void IRAM_ATTR btn_isr(void *arg)
+static void wifi_init(void)
 {
-    t_cycle = esp_cpu_get_cycle_count();
-    BaseType_t hp = pdFALSE;
-    vTaskNotifyGiveFromISR(led_task, &hp);
-    if (hp) portYIELD_FROM_ISR();
+    esp_netif_init();  esp_event_loop_create_default();
+    esp_netif_create_default_wifi_ap();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+
+    wifi_config_t ap = { .ap = {
+            .ssid = MY_AP_SSID, .password = MY_AP_PASS,
+            .authmode = WIFI_AUTH_WPA2_PSK, .max_connection = 4, .channel = 1 }};
+    esp_wifi_set_mode(WIFI_MODE_AP);
+    esp_wifi_set_config(WIFI_IF_AP, &ap);
+    wifi_ap_set_proto(WIFI_STD_6);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_start();
 }
 
-/* ---------- TCP server task -------------------------------------------- */
 static void tcp_srv_task(void *arg)
 {
     int srv = socket(AF_INET, SOCK_STREAM, 0);
+    int yes = 1;  setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     struct sockaddr_in a = { .sin_family = AF_INET,
                              .sin_port   = htons(TCP_PORT),
                              .sin_addr.s_addr = htonl(INADDR_ANY) };
-    bind(srv, (void*)&a, sizeof(a));
-    listen(srv, 1);
-    ESP_LOGI(TAG, "TCP server: %d", TCP_PORT);
+    bind(srv, (void*)&a, sizeof(a));  listen(srv, 1);
+    ESP_LOGI(TAG, "TCP server %d ready", TCP_PORT);
 
     for (;;) {
         struct sockaddr_in cli; socklen_t len = sizeof(cli);
@@ -66,8 +130,115 @@ static void tcp_srv_task(void *arg)
         }
     }
 }
+#endif /* !PROTO_BT */
 
-/* ---------- LED task ---------------------------------------------------- */
+/* ===================================================================== *
+ *  BLE-инициализация  (NimBLE Peripheral, имя  ESP32C6_LED)              *
+ *  — сервис 0x1815, characteristic 0x2A56 с READ + NOTIFY               *
+ * ===================================================================== */
+#if PROTO_BT
+
+#define BLE_SVC_UUID16  0x1815
+#define BLE_CHR_UUID16  0x2A56
+
+static uint16_t gatt_chr_handle;               /* h-val для notify   */
+static uint16_t conn_handle = BLE_HS_CONN_HANDLE_NONE;
+static uint8_t  own_addr_type;                 /* сохраняем при sync */
+
+/* ───────── GATT: callback «прочитать» ─────────────────────────────── */
+/* GATT read = вернуть “ON/OFF” */
+static int gatt_access_cb(uint16_t conn, uint16_t attr,
+                          struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    const char *s = led_on ? "ON" : "OFF";
+    return os_mbuf_append(ctxt->om, s, strlen(s));
+}
+
+/* Service 0x1815 / Char 0x2A56 */
+static const struct ble_gatt_svc_def gatt_svcs[] = {{
+    .type = BLE_GATT_SVC_TYPE_PRIMARY,
+    .uuid = BLE_UUID16_DECLARE(0x1815),
+    .characteristics = (struct ble_gatt_chr_def[]) {{
+        .uuid       = BLE_UUID16_DECLARE(0x2A56),
+        .access_cb  = gatt_access_cb,
+        .flags      = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+        .val_handle = &gatt_chr_handle,
+    }, {0}}
+}, {0}};
+
+/* GAP-events: connect / disconnect → перезапускаем ADV */
+static int gap_cb(struct ble_gap_event *ev, void *a)
+{
+    if (ev->type == BLE_GAP_EVENT_CONNECT) {
+        if (ev->connect.status == 0) conn_handle = ev->connect.conn_handle;
+        else ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
+               &((struct ble_gap_adv_params){ .conn_mode = BLE_GAP_CONN_MODE_UND,
+                                              .disc_mode = BLE_GAP_DISC_MODE_GEN }),
+               gap_cb, NULL);
+    } else if (ev->type == BLE_GAP_EVENT_DISCONNECT) {
+        conn_handle = BLE_HS_CONN_HANDLE_NONE;
+        ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
+               &((struct ble_gap_adv_params){ .conn_mode = BLE_GAP_CONN_MODE_UND,
+                                              .disc_mode = BLE_GAP_DISC_MODE_GEN }),
+               gap_cb, NULL);
+    }
+    return 0;
+}
+
+/* sync → настраиваем всё и стартуем рекламу */
+static void ble_app_on_sync(void)
+{
+    ble_hs_id_infer_auto(0, &own_addr_type);
+    if (own_addr_type != BLE_ADDR_PUBLIC) own_addr_type = BLE_ADDR_PUBLIC; /* <─ */
+
+    ble_svc_gap_init();
+    ble_svc_gatt_init();
+    ble_gatts_count_cfg(gatt_svcs);
+    ble_gatts_add_svcs(gatt_svcs);
+    ble_gatts_start();  
+    ble_svc_gap_device_name_set("ESP32C6_LED");
+
+    static const ble_uuid16_t svc_uuid = BLE_UUID16_INIT(0x1815);
+    struct ble_hs_adv_fields adv = {0};
+    adv.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+    adv.uuids16 = &svc_uuid; adv.num_uuids16 = 1; adv.uuids16_is_complete = 1;
+    ble_gap_adv_set_fields(&adv);
+
+    struct ble_hs_adv_fields rsp = {0};
+    const char *nm = "ESP32C6_LED";
+    rsp.name = (const uint8_t*)nm; rsp.name_len = strlen(nm); rsp.name_is_complete = 1;
+    ble_gap_adv_rsp_set_fields(&rsp);
+
+    struct ble_gap_adv_params p = { .conn_mode = BLE_GAP_CONN_MODE_UND,
+                                    .disc_mode = BLE_GAP_DISC_MODE_GEN };
+    ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER, &p, gap_cb, NULL);
+}
+
+/* ───────── NimBLE task-обёртка (остается в цикле) ────────────────── */
+static void nimble_host_task(void *param)   /* ← любое имя */
+{
+    nimble_port_run();          /* никогда не выходит */
+    nimble_port_freertos_deinit();
+}
+
+/* ───────── инициализация BLE-стека ───────────────────────────────── */
+static void ble_init(void)
+{
+    esp_bt_mem_release(ESP_BT_MODE_CLASSIC_BT);   /* освободить BT Classic RAM */
+    nimble_port_init();
+    ble_hs_cfg.sync_cb = ble_app_on_sync;
+
+    /* передаём **указатель на функцию**, без [] и {} */
+    nimble_port_freertos_init(nimble_host_task);
+}
+#endif /* PROTO_BT */
+
+
+
+
+/* ************************************************************************** */
+/*                               LED-TASK                                     */
+/* ************************************************************************** */
 static void led_task_fn(void *arg)
 {
     bool on = false;
@@ -78,69 +249,57 @@ static void led_task_fn(void *arg)
 
         led_strip_set_pixel(strip, 0, on ? 32 : 0, 0, 0);
         led_strip_refresh(strip);
-        if (client_fd >= 0) {
-            char buf[96];
-            int n = snprintf(buf, sizeof(buf),
-                             "LED:%s\n",
-                             on ? "ON" : "OFF");
-            send(client_fd, buf, n, 0);
-        }
-        uint32_t d = esp_cpu_get_cycle_count() - t_cycle;
-        float ns = d * 1e9f / cpu, ms = ns / 1e6f;
-        ESP_LOGI(TAG, "LED %s | cycles:%lu %.2f ns (%.6f ms)",
-                 on ? "ON" : "OFF", d, ns, ms);
+
+        led_on = on;
+        char buf[16];
+        int  n = snprintf(buf, sizeof(buf), "LED:%s\n", on ? "ON" : "OFF");
+        tx_send(buf, n);
+
+        uint32_t d  = esp_cpu_get_cycle_count() - t_cycle;
+        float    ns = d * 1e9f / cpu;
+        ESP_LOGI(TAG, "LED %s | %.3f µs", on ? "ON" : "OFF", ns / 1e3);
         on = !on;
     }
 }
 
-/* ---------- Wi-Fi init -------------------------------------------------- */
-static void wifi_init(void)
-{
-    esp_netif_init();  esp_event_loop_create_default();
-    esp_netif_create_default_wifi_ap();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&cfg);
-
-    wifi_config_t ap = { .ap = {
-        .ssid = MY_AP_SSID, .password = MY_AP_PASS,
-        .authmode = WIFI_AUTH_WPA2_PSK, .max_connection = 4, .channel = 1 }};
-
-    esp_wifi_set_mode(WIFI_MODE_AP);
-    esp_wifi_set_config(WIFI_IF_AP, &ap);
-    wifi_ap_set_proto(WIFI_STD_6);      /* Wi-Fi 6 only */
-    esp_wifi_set_ps(WIFI_PS_NONE);
-    esp_wifi_start();
-
-    wifi_protocols_t chk;
-    esp_wifi_get_protocols(WIFI_IF_AP, &chk);
-    ESP_LOGI(TAG, "AP proto2G=0x%X (0x20=AX)", chk.ghz_2g);
-}
-
-/* ---------- app_main ---------------------------------------------------- */
+/* ************************************************************************** */
+/*                                MAIN                                        */
+/* ************************************************************************** */
 void app_main(void)
 {
-    nvs_flash_init(); wifi_init();
+    ESP_ERROR_CHECK(nvs_flash_init());
 
-    /* LED-strip */
-    led_strip_config_t c = { .strip_gpio_num = LED_GPIO,
-                             .max_leds       = LED_COUNT,
-                             .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
-                             .led_model      = LED_MODEL_WS2812 };
-    led_strip_rmt_config_t r = { .clk_src = RMT_CLK_SRC_DEFAULT,
-                                 .resolution_hz = 10 * 1000 * 1000 };
-    led_strip_new_rmt_device(&c, &r, &strip);
+#if PROTO_BT
+    ble_init();
+#else
+    wifi_init();
+    xTaskCreatePinnedToCore(tcp_srv_task, "tcp", 4096, NULL, 8, NULL, 0);
+#endif
 
-    /* GPIO и ISR */
-    gpio_config_t b = { .pin_bit_mask = 1ULL << BOOT_BTN,
-                        .mode = GPIO_MODE_INPUT,
-                        .pull_up_en = 1,
-                        .intr_type = GPIO_INTR_NEGEDGE };
-    gpio_config(&b);
+    /* LED-strip init ---------------------------------------------------- */
+    led_strip_config_t cfg = {
+        .strip_gpio_num = LED_GPIO,
+        .max_leds       = LED_COUNT,
+        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
+        .led_model      = LED_MODEL_WS2812
+    };
+    led_strip_rmt_config_t rmt = {
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = 10 * 1000 * 1000
+    };
+    led_strip_new_rmt_device(&cfg, &rmt, &strip);
+
+    /* кнопка + ISR ------------------------------------------------------ */
+    gpio_config_t io = {
+        .pin_bit_mask = 1ULL << BOOT_BTN,
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = 1,
+        .intr_type    = GPIO_INTR_NEGEDGE
+    };
+    gpio_config(&io);
     gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     gpio_isr_handler_add(BOOT_BTN, btn_isr, NULL);
 
-    /* Задачи */
+    /* LED-task ---------------------------------------------------------- */
     xTaskCreatePinnedToCore(led_task_fn, "led", 2048, NULL, 10, &led_task, 0);
-    xTaskCreatePinnedToCore(tcp_srv_task, "srv", 4096, NULL, 8, NULL, 0);
 }
