@@ -2,7 +2,7 @@
  *  ESP32-C6  ―  Wi-Fi AP + TCP  ‖  BLE Peripheral + GATT Notify
  *  переключается строкой PROTO_BT
  * ----------------------------------------------------------------- */
-#define PROTO_BT   1            /* 0 = Wi-Fi,  1 = Bluetooth LE */
+#define PROTO_BT   0            /* 0 = Wi-Fi,  1 = Bluetooth LE */
 
 /* ---------- общие incluye ----------------------------------------- */
 #include "freertos/FreeRTOS.h"
@@ -57,31 +57,12 @@ static void IRAM_ATTR btn_isr(void *arg)
     if (hp) portYIELD_FROM_ISR();
 }
 
-/* отправка текста при смене состояния светодиода */
-#if PROTO_BT
-/* BLE: notify ----------------------------------------------------------------*/
-static uint16_t            gatt_chr_handle;
-static uint16_t            ble_conn_handle = BLE_HS_CONN_HANDLE_NONE;
-
-static void tx_send(const char *msg, size_t len)
-{
-    if (ble_conn_handle == BLE_HS_CONN_HANDLE_NONE) return;
-    struct os_mbuf *om = ble_hs_mbuf_from_flat(msg, len);
-    ble_gatts_notify_custom(ble_conn_handle, gatt_chr_handle, om);
-}
-#else
-/* TCP: send ------------------------------------------------------------------*/
-static int client_fd = -1;
-static void tx_send(const char *msg, size_t len)
-{
-    if (client_fd >= 0) send(client_fd, msg, len, 0);
-}
-#endif
 
 /* ************************************************************************** */
 /*                              Wi-Fi / TCP PART                              */
 /* ************************************************************************** */
 #if !PROTO_BT
+static int client_fd = -1;
 typedef enum { WIFI_STD_4, WIFI_STD_6 } wifi_std_t;
 static esp_err_t wifi_ap_set_proto(wifi_std_t s)
 {
@@ -150,7 +131,7 @@ static uint8_t  own_addr_type;                 /* сохраняем при sync
 static int gatt_access_cb(uint16_t conn, uint16_t attr,
                           struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    const char *s = led_on ? "ON" : "OFF";
+    const char *s = led_on ? "LED:ON" : "LED:OFF";
     return os_mbuf_append(ctxt->om, s, strlen(s));
 }
 
@@ -166,24 +147,56 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {{
     }, {0}}
 }, {0}};
 
-/* GAP-events: connect / disconnect → перезапускаем ADV */
-static int gap_cb(struct ble_gap_event *ev, void *a)
+/* ------------------------------------------------------------------ */
+/*  GAP-callback: обрабатывает CONNECT, DISCONNECT и SUBSCRIBE        */
+/* ------------------------------------------------------------------ */
+static int gap_cb(struct ble_gap_event *ev, void *arg)
 {
-    if (ev->type == BLE_GAP_EVENT_CONNECT) {
-        if (ev->connect.status == 0) conn_handle = ev->connect.conn_handle;
-        else ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
-               &((struct ble_gap_adv_params){ .conn_mode = BLE_GAP_CONN_MODE_UND,
-                                              .disc_mode = BLE_GAP_DISC_MODE_GEN }),
-               gap_cb, NULL);
-    } else if (ev->type == BLE_GAP_EVENT_DISCONNECT) {
+    switch (ev->type) {
+
+    /* ---------- установлено / не удалось соединение ---------------- */
+    case BLE_GAP_EVENT_CONNECT:
+        if (ev->connect.status == 0) {
+            conn_handle = ev->connect.conn_handle;
+            ESP_LOGI(TAG, "BLE connected (handle=%d)", conn_handle);
+        } else {
+            ESP_LOGW(TAG, "Connect failed (status=%d) – restart ADV",
+                     ev->connect.status);
+            ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
+                              &((struct ble_gap_adv_params){
+                                  .conn_mode = BLE_GAP_CONN_MODE_UND,
+                                  .disc_mode = BLE_GAP_DISC_MODE_GEN }),
+                              gap_cb, NULL);
+        }
+        break;
+
+    /* ---------- разрыв соединения ---------------------------------- */
+    case BLE_GAP_EVENT_DISCONNECT:
+        ESP_LOGI(TAG, "BLE disconnect (reason=%d)",
+                 ev->disconnect.reason);
         conn_handle = BLE_HS_CONN_HANDLE_NONE;
         ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER,
-               &((struct ble_gap_adv_params){ .conn_mode = BLE_GAP_CONN_MODE_UND,
-                                              .disc_mode = BLE_GAP_DISC_MODE_GEN }),
-               gap_cb, NULL);
+                          &((struct ble_gap_adv_params){
+                              .conn_mode = BLE_GAP_CONN_MODE_UND,
+                              .disc_mode = BLE_GAP_DISC_MODE_GEN }),
+                          gap_cb, NULL);
+        break;
+
+    /* ---------- клиент (de)подписался на notify/indicate ----------- */
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        ESP_LOGI(TAG,
+                 "SUBSCRIBE attr=0x%04x  notify=%d  indicate=%d",
+                 ev->subscribe.attr_handle,
+                 ev->subscribe.cur_notify,
+                 ev->subscribe.cur_indicate);
+        break;
+
+    default:
+        break;
     }
     return 0;
 }
+
 
 /* sync → настраиваем всё и стартуем рекламу */
 static void ble_app_on_sync(void)
@@ -234,6 +247,36 @@ static void ble_init(void)
 #endif /* PROTO_BT */
 
 
+#if PROTO_BT
+/* ------------ BLE Notify ------------------------------------------ */
+
+static int tx_send(const char *msg, size_t len) /* возвращаем rc */
+{
+    if (conn_handle == BLE_HS_CONN_HANDLE_NONE){/* нет соединения */
+        // ESP_LOGW(TAG, "TX_send warns: no connection");
+        return BLE_HS_ENOTCONN;
+    }   
+
+    /* защита от слишком длинного сообщения (MTU-3)            *
+     * 23-байт MTU по умолчанию → 20 байт доступно в ATT Value */
+    if (len > BLE_ATT_MTU_DFLT - 3) len = BLE_ATT_MTU_DFLT - 3;
+
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(msg, len);
+    int rc = ble_gatts_notify_custom(conn_handle, gatt_chr_handle, om);
+
+    if (rc != 0) {                        /* если стек вернул ошибку   */
+        os_mbuf_free_chain(om);           /* — освобождаем буфер сами  */
+        ESP_LOGW(TAG, "Notify error rc=%d", rc);
+    }
+    return rc;
+}
+#else
+/* ------------ TCP Send -------------------------------------------- */
+static int tx_send(const char *msg, size_t len)
+{
+    return (client_fd >= 0) ? send(client_fd, msg, len, 0) : -1;
+}
+#endif
 
 
 /* ************************************************************************** */
@@ -257,7 +300,7 @@ static void led_task_fn(void *arg)
 
         uint32_t d  = esp_cpu_get_cycle_count() - t_cycle;
         float    ns = d * 1e9f / cpu;
-        ESP_LOGI(TAG, "LED %s | %.3f µs", on ? "ON" : "OFF", ns / 1e3);
+        ESP_LOGI(TAG, "LED %s | %d cycles | %.3f µs | %.3f ms", on ? "ON" : "OFF", d, ns / 1e3, ns / 1e6);
         on = !on;
     }
 }
@@ -268,6 +311,7 @@ static void led_task_fn(void *arg)
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
+    esp_log_level_set("NimBLE", ESP_LOG_NONE);
 
 #if PROTO_BT
     ble_init();

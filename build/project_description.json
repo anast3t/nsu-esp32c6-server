@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "blink",
-    "project_version":    "6bc3b29-dirty",
+    "project_version":    "3fcc348-dirty",
     "project_path":       "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink",
     "idf_path":           "/Users/anastet/esp/esp-idf",
     "build_dir":          "/Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/build",
