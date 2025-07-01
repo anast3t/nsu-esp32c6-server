@@ -1,4 +1,4 @@
-# Install script for directory: /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/main
+# Install script for directory: /Users/anastet/VSCodeProjects/ESPIDFTEST2/espidftest3/blink/components/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
