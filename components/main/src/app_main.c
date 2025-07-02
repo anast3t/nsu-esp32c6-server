@@ -5,7 +5,7 @@
 #include "led_ctrl.h"
 
 void app_main(void) {
-    esp_log_level_set("*", ESP_LOG_NONE);
+    // esp_log_level_set("*", ESP_LOG_NONE);
 
     ESP_ERROR_CHECK(nvs_flash_init());
     // esp_log_level_set("NimBLE", ESP_LOG_NONE);

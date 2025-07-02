@@ -4,10 +4,12 @@ message(STATUS ">>> CONFIG_PROTO_BT_ENABLED = ${CONFIG_PROTO_BT_ENABLED}")
 
 # К Wi-Fi или к BLE добавляем свой файл
 # if(CONFIG_PROTO_BT_ENABLED)
-    list(APPEND TRANSPORT_SRCS src/transport_ble.c)
+    # list(APPEND TRANSPORT_SRCS src/transport_ble.c)
 # else()
     # list(APPEND TRANSPORT_SRCS src/transport_wifi.c)
 # endif()
+
+list(APPEND TRANSPORT_SRCS src/transport_espnow.c)
 
 idf_component_register(
     SRCS
