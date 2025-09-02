@@ -1,3 +1,92 @@
+// #include "led_ctrl.h"
+// #include "driver/gpio.h"
+// #include "led_strip.h"
+// #include "esp_cpu.h"
+// #include "esp_log.h"
+// #include "transport.h"      // transport_send()
+// #include "esp_err.h"
+
+// #define LED_GPIO 8
+// #define LED_COUNT 1
+// #define BOOT_BTN 9
+
+// static led_strip_handle_t strip;
+// static TaskHandle_t       led_task;
+// static volatile uint32_t  t_cycle;
+// static bool               led_on = false;
+// static const char        *TAG = "LED_CTRL";
+
+// static void IRAM_ATTR btn_isr(void *arg) {
+//     t_cycle = esp_cpu_get_cycle_count();
+//     BaseType_t hp = pdFALSE;
+//     vTaskNotifyGiveFromISR(led_task, &hp);
+//     if (hp) portYIELD_FROM_ISR();
+// }
+
+// static void led_task_fn(void *arg) {
+//     bool on = false;
+//     const uint32_t cpu = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000UL;
+//     for (;;) {
+//         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+//         led_strip_set_pixel(strip, 0, on ? 32 : 0, 0, 0);
+//         led_strip_refresh(strip);
+//         led_on = on;
+//         char buf[32];
+//         int n = snprintf(buf, sizeof(buf), "LED:%s\n", on ? "ON" : "OFF");
+//         transport_send(buf, n);
+//         uint32_t d = esp_cpu_get_cycle_count() - t_cycle;
+//         float ns = d * 1e9f / cpu;
+//         ESP_LOGI(TAG, "LED %s | %.3f µs | %.3f ms", on?"ON":"OFF", ns/1e3, ns/1e6);
+//         on = !on;
+//     }
+// }
+
+// // сюда же вверху файла, после объявления led_task и t_cycle
+// static void periodic_task(void *arg)
+// {
+//     for (;;) {
+//         // засечём момент «имитации нажатия»
+//         t_cycle = esp_cpu_get_cycle_count();
+//         // уведомим led_task ровно так же, как ISR
+//         xTaskNotifyGive(led_task);
+//         // ждём полсекунды
+//         vTaskDelay(pdMS_TO_TICKS(50));
+//     }
+// }
+
+
+// esp_err_t led_ctrl_init(void) {
+//     // инициализация ленты
+//     led_strip_config_t cfg = { .strip_gpio_num = LED_GPIO, .max_leds = LED_COUNT,
+//                                .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
+//                                .led_model = LED_MODEL_WS2812 };
+//     led_strip_rmt_config_t rmt = { .clk_src = RMT_CLK_SRC_DEFAULT,
+//                                     .resolution_hz = 10 * 1000 * 1000 };
+//     led_strip_new_rmt_device(&cfg, &rmt, &strip);
+
+//     // кнопка + ISR
+//     gpio_config_t io = {
+//         .pin_bit_mask = 1ULL << BOOT_BTN,
+//         .mode = GPIO_MODE_INPUT,
+//         .pull_up_en = 1,
+//         .intr_type = GPIO_INTR_NEGEDGE
+//     };
+//     gpio_config(&io);
+//     gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+//     gpio_isr_handler_add(BOOT_BTN, btn_isr, NULL);
+
+//     xTaskCreatePinnedToCore(led_task_fn, "led_task", 2048, NULL, 10, &led_task, 0);
+//     xTaskCreatePinnedToCore(
+//         periodic_task, "periodic", 2048, NULL, 9, NULL, 0
+//     );
+//     ESP_LOGI(TAG, "LED controller ready");
+//     return ESP_OK;
+// }
+
+// bool led_ctrl_is_on(void) {
+//     return led_on;
+// }
+
 #include "led_ctrl.h"
 #include "driver/gpio.h"
 #include "led_strip.h"
@@ -5,18 +94,31 @@
 #include "esp_log.h"
 #include "transport.h"      // transport_send()
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-#define LED_GPIO 8
-#define LED_COUNT 1
-#define BOOT_BTN 9
+#define LED_GPIO   8
+#define LED_COUNT  1
+#define BOOT_BTN   9
 
 static led_strip_handle_t strip;
 static TaskHandle_t       led_task;
 static volatile uint32_t  t_cycle;
-static bool               led_on = false;
 static const char        *TAG = "LED_CTRL";
 
+// Таблица цветов: R,G,B (0–32)
+static const uint8_t color_table[][3] = {
+    {32,  0,  0},   // красный
+    { 0, 32,  0},   // зелёный
+    { 0,  0, 32},   // синий
+    {32, 32,  0},   // жёлтый
+    { 0, 32, 32},   // циан
+    {32,  0, 32},   // пурпур
+};
+static const size_t COLOR_COUNT = sizeof(color_table) / sizeof(color_table[0]);
+
 static void IRAM_ATTR btn_isr(void *arg) {
+    // по прежнему — засечь такты и нотифицировать таск
     t_cycle = esp_cpu_get_cycle_count();
     BaseType_t hp = pdFALSE;
     vTaskNotifyGiveFromISR(led_task, &hp);
@@ -24,68 +126,80 @@ static void IRAM_ATTR btn_isr(void *arg) {
 }
 
 static void led_task_fn(void *arg) {
-    bool on = false;
-    const uint32_t cpu = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000UL;
+    size_t idx = 0;
+    const uint32_t cpu_hz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000UL;
+
     for (;;) {
+        // ждём нотификацию или от кнопки, или от периодического таска
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        led_strip_set_pixel(strip, 0, on ? 32 : 0, 0, 0);
+
+        // выбираем цвет и рисуем
+        uint8_t r = color_table[idx][0];
+        uint8_t g = color_table[idx][1];
+        uint8_t b = color_table[idx][2];
+        led_strip_set_pixel(strip, 0, r, g, b);
         led_strip_refresh(strip);
-        led_on = on;
+
+        // отправляем строку "COL:R,G,B\n"
         char buf[32];
-        int n = snprintf(buf, sizeof(buf), "LED:%s\n", on ? "ON" : "OFF");
+        int n = snprintf(buf, sizeof(buf), "COL:%u,%u,%u\n", r, g, b);
         transport_send(buf, n);
-        uint32_t d = esp_cpu_get_cycle_count() - t_cycle;
-        float ns = d * 1e9f / cpu;
-        ESP_LOGI(TAG, "LED %s | %.3f µs | %.3f ms", on?"ON":"OFF", ns/1e3, ns/1e6);
-        on = !on;
+
+        // лог времени от прерывания до обработки
+        uint32_t d   = esp_cpu_get_cycle_count() - t_cycle;
+        float    ns  = (float)d * 1e9f / cpu_hz;
+        ESP_LOGI(TAG,
+                 "COLOR %u → R%u,G%u,B%u | %.3f µs | %.3f ms",
+                 idx, r, g, b, ns/1e3f, ns/1e6f);
+
+        // следующий цвет по кругу
+        idx = (idx + 1) % COLOR_COUNT;
     }
 }
 
-// сюда же вверху файла, после объявления led_task и t_cycle
+// Периодический таск — подтолкнёт led_task_fn() каждые 500 ms
 static void periodic_task(void *arg)
 {
     for (;;) {
-        // засечём момент «имитации нажатия»
-        t_cycle = esp_cpu_get_cycle_count();
-        // уведомим led_task ровно так же, как ISR
-        xTaskNotifyGive(led_task);
-        // ждём полсекунды
-        vTaskDelay(pdMS_TO_TICKS(500));
+        t_cycle = esp_cpu_get_cycle_count();        // засечь момент
+        xTaskNotifyGive(led_task);                  // как ISR
+        vTaskDelay(pdMS_TO_TICKS(250));             // 0.5 s
     }
 }
 
-
 esp_err_t led_ctrl_init(void) {
     // инициализация ленты
-    led_strip_config_t cfg = { .strip_gpio_num = LED_GPIO, .max_leds = LED_COUNT,
-                               .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
-                               .led_model = LED_MODEL_WS2812 };
-    led_strip_rmt_config_t rmt = { .clk_src = RMT_CLK_SRC_DEFAULT,
-                                    .resolution_hz = 10 * 1000 * 1000 };
+    led_strip_config_t cfg = {
+        .strip_gpio_num = LED_GPIO,
+        .max_leds       = LED_COUNT,
+        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
+        .led_model      = LED_MODEL_WS2812
+    };
+    led_strip_rmt_config_t rmt = {
+        .clk_src       = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = 10 * 1000 * 1000
+    };
     led_strip_new_rmt_device(&cfg, &rmt, &strip);
 
     // кнопка + ISR
     gpio_config_t io = {
         .pin_bit_mask = 1ULL << BOOT_BTN,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = 1,
-        .intr_type = GPIO_INTR_NEGEDGE
+        .mode         = GPIO_MODE_INPUT,
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
+        .intr_type    = GPIO_INTR_NEGEDGE
     };
     gpio_config(&io);
     gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     gpio_isr_handler_add(BOOT_BTN, btn_isr, NULL);
 
-    xTaskCreatePinnedToCore(led_task_fn, "led_task", 2048, NULL, 10, &led_task, 0);
-    xTaskCreatePinnedToCore(
-        periodic_task, "periodic", 2048, NULL, 9, NULL, 0
-    );
-    ESP_LOGI(TAG, "LED controller ready");
+    // создаём таски
+    xTaskCreatePinnedToCore(led_task_fn,   "led_task",  2048, NULL, 10, &led_task,    0);
+    xTaskCreatePinnedToCore(periodic_task, "periodic",  2048, NULL,  9, NULL,         0);
+
+    ESP_LOGI(TAG, "LED controller ready: %u colors", COLOR_COUNT);
     return ESP_OK;
 }
 
-bool led_ctrl_is_on(void) {
-    return led_on;
-}
 
 // #include "led_ctrl.h"
 // #include "driver/gpio.h"

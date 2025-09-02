@@ -61,7 +61,13 @@ esp_err_t transport_init(void)
     esp_wifi_init(&cfg);
 
     wifi_config_t ap = {.ap = {
-                            .ssid = MY_AP_SSID, .password = MY_AP_PASS, .authmode = WIFI_AUTH_WPA2_PSK, .max_connection = 4, .channel = 1}};
+                            .ssid = MY_AP_SSID, 
+                            .password = MY_AP_PASS, 
+                            .authmode = WIFI_AUTH_WPA2_PSK, 
+                            .max_connection = 4, 
+                            .channel = 1,
+                            .beacon_interval = 50
+                        }};
     esp_wifi_set_mode(WIFI_MODE_AP);
     esp_wifi_set_config(WIFI_IF_AP, &ap);
     wifi_ap_set_proto(WIFI_STD_6);
