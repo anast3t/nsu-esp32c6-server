@@ -4,7 +4,7 @@
   "idf.toolsPath": "/Users/anastet/.espressif",
 "idf.pythonInstallPath": "/opt/homebrew/bin/python3",
 "idf.openOcdConfigs": [
-    "board/esp32c6-builtin.cfg"
+    "board/esp32c6-lpcore-builtin.cfg"
 ],
 "idf.customExtraVars": {
     "IDF_TARGET": "esp32c6"
